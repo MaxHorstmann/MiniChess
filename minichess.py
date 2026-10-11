@@ -12,6 +12,9 @@ def evaluate(board):
     score = 0
     for sq, p in board.piece_map().items():
         v = VAL[p.piece_type]
+        if p.piece_type != chess.KING:
+            f, r = chess.square_file(sq), chess.square_rank(sq)
+            v += 10 - 3 * (abs(f - 3.5) + abs(r - 3.5)) / 1  # center bonus
         score += v if p.color == chess.WHITE else -v
     return score if board.turn == chess.WHITE else -score
 
@@ -73,7 +76,7 @@ def best_move(board, depth=4):
 
 
 if __name__ == "__main__":
-    # You play Black (UCI moves like e7e5); the engine plays White.
+    # You play White (UCI moves like e2e4); the engine plays Black.
     board = chess.Board()
     while not board.is_game_over():
         if board.turn == chess.BLACK:
