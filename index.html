@@ -25,12 +25,20 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
 <script>
 const game = new Chess();       // you are White, engine is Black
-let thinking = false;
+let thinking = false, ready = false, gameId = 0;
 const $status = $('#status');
+
+const worker = new Worker('worker.js');
+worker.onmessage = ({ data }) => {
+  if (data.type === 'ready') { ready = true; updateStatus(); }
+  else if (data.type === 'move') { if (data.id === gameId) applyEngineMove(data.move); }
+  else if (data.type === 'error') { thinking = false; $status.text('Engine error: ' + data.error); }
+};
 
 function updateStatus() {
   if (game.in_checkmate()) $status.text(game.turn() === 'w' ? 'Checkmate. You lose.' : 'Checkmate. You win!');
   else if (game.in_draw()) $status.text('Draw.');
+  else if (!ready) $status.text('Loading engine (first load takes a few seconds)...');
   else if (thinking) $status.text('Engine thinking...');
   else $status.text('Your move' + (game.in_check() ? ' (check)' : '') + '.');
 }
@@ -42,28 +50,18 @@ function onDragStart(source, piece) {
 function onDrop(source, target) {
   const move = game.move({ from: source, to: target, promotion: 'q' });
   if (move === null) return 'snapback';
+  thinking = true;
   updateStatus();
-  if (!game.game_over()) engineMove();
+  if (!game.game_over()) worker.postMessage({ fen: game.fen(), depth: +$('#depth').val(), id: gameId });
+  else thinking = false;
 }
 
-async function engineMove() {
-  thinking = true; updateStatus();
-  try {
-    const res = await fetch('/move', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ fen: game.fen(), depth: +$('#depth').val() }),
-    });
-    const data = await res.json();
-    if (!data.move) throw new Error(data.error || 'no move');
-    game.move({ from: data.move.slice(0, 2), to: data.move.slice(2, 4), promotion: data.move[4] });
-    board.position(game.fen());
-  } catch (e) {
-    $status.text('Engine error: ' + e.message);
-    thinking = false;
-    return;
-  }
-  thinking = false; updateStatus();
+function applyEngineMove(uci) {
+  thinking = false;
+  if (!uci) { updateStatus(); return; }
+  game.move({ from: uci.slice(0, 2), to: uci.slice(2, 4), promotion: uci[4] });
+  board.position(game.fen());
+  updateStatus();
 }
 
 const board = Chessboard('board', {
@@ -74,7 +72,7 @@ const board = Chessboard('board', {
   onSnapEnd: () => board.position(game.fen()),   // handles castling / en passant / promotion
 });
 
-$('#new').on('click', () => { game.reset(); board.start(); thinking = false; updateStatus(); });
+$('#new').on('click', () => { gameId++; game.reset(); board.start(); thinking = false; updateStatus(); });
 updateStatus();
 </script>
 </body>
