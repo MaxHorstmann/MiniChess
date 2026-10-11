@@ -1,0 +1,2 @@
+# MiniChess
+Minimal chess engine
