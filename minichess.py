@@ -64,7 +64,28 @@ def negamax(board, depth, alpha, beta):
     return alpha
 
 
+def _key(moves):
+    """EPD of the position after playing these SAN moves from the start."""
+    b = chess.Board()
+    for san in moves.split():
+        b.push_san(san)
+    return b.epd()
+
+
+# Opening book: position (EPD) -> reply in UCI. Black always plays the Najdorf.
+BOOK = {
+    _key("e4"): "c7c5",
+    _key("e4 c5 Nf3"): "d7d6",
+    _key("e4 c5 Nf3 d6 d4"): "c5d4",
+    _key("e4 c5 Nf3 d6 d4 cxd4 Nxd4"): "g8f6",
+    _key("e4 c5 Nf3 d6 d4 cxd4 Nxd4 Nf6 Nc3"): "a7a6",
+}
+
+
 def best_move(board, depth=4):
+    reply = BOOK.get(board.epd())
+    if reply and chess.Move.from_uci(reply) in board.legal_moves:
+        return chess.Move.from_uci(reply)
     best, best_score = None, -10**9
     for m in ordered(board):
         board.push(m)
